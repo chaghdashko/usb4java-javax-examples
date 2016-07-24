@@ -3,6 +3,8 @@ package org.usb4java.javax.examples;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.usb4java.BufferUtils;
 import org.usb4java.DeviceHandle;
@@ -14,7 +16,7 @@ public class ScannerHID {
 	private static final short	PRODUCT_ID		= 0x0200;		// MS7120 Barcode Scanner
 	private static final int	INTERFACE		= 0;			// Interface number
 	private static final byte	ENDPOINT_IN		= (byte) 0x81;	// Interrupt input endpoint
-	private static final int	TRANSFER_SIZE	= 128;			// Barcode data size in bytes
+	private static final int	TRANSFER_SIZE	= 1;			// Barcode data size in bytes
 
 	public static void main(String[] args) {
 		DeviceHandle handle = null;
@@ -76,30 +78,47 @@ public class ScannerHID {
 		}
 
 		ByteBuffer data = BufferUtils.allocateByteBuffer(TRANSFER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
-		data.rewind();
 		IntBuffer transferred = BufferUtils.allocateIntBuffer();
+		int r;
+		List<Byte> bytes = new ArrayList<>();
+		boolean isFirst = true;
+		boolean isSecond = true;
 
-		int r = LibUsb.interruptTransfer(handle, endpoint, data, transferred, 0);
+		while (true) {
+			data.rewind();
 
-		if (r != LibUsb.SUCCESS) {
-			throw new LibUsbException("ERROR: Unable read data", r);
-		} else {
-			System.out.println("Data read; transferred:" + transferred.get());
-
-			if (data.hasArray()) {
-				System.out.println("ARRAY: " + data.array());
+			if (isFirst || isSecond) {
+				r = LibUsb.interruptTransfer(handle, endpoint, data, transferred, 0);
 			} else {
-				data.get(arr, 0, TRANSFER_SIZE);
+				r = LibUsb.interruptTransfer(handle, endpoint, data, transferred, 100);
+			}
 
-				for (int i = 0; i < TRANSFER_SIZE; i++) {
-					if (i != 0) {
-						System.out.print(", ");
-					}
+			if (r != LibUsb.SUCCESS) {
+				if (r != LibUsb.ERROR_TIMEOUT) {
+					throw new LibUsbException("ERROR: Unable read data", r);
+				} else break;
+			} else {
+				int readCount = transferred.get();
+				data.get(arr, 0, readCount);
 
-					System.out.print(arr[i]);
-				}
+				if (!isFirst) bytes.add(arr[0]);
+
+				if (isFirst == true) isFirst = false;
+				else if (isSecond == true) isSecond = false;
+
+				transferred.clear();
+				data.clear();
 			}
 		}
+
+		System.out.println("Read count = " + bytes.size());
+
+		for (Byte b : bytes) {
+			System.out.print(b + " ");
+		}
+
+		System.out.println();
+		System.out.println();
 
 		return data.toString();
 	}

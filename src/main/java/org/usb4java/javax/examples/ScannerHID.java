@@ -14,7 +14,7 @@ public class ScannerHID {
 	private static final short	PRODUCT_ID		= 0x0200;		// MS7120 Barcode Scanner
 	private static final int	INTERFACE		= 0;			// Interface number
 	private static final byte	ENDPOINT_IN		= (byte) 0x81;	// Interrupt input endpoint
-	private static final int	TRANSFER_SIZE	= 208;			// Barcode data size in bytes
+	private static final int	TRANSFER_SIZE	= 128;			// Barcode data size in bytes
 
 	public static void main(String[] args) {
 		DeviceHandle handle = null;
@@ -69,7 +69,13 @@ public class ScannerHID {
 
 	private static String transferData(DeviceHandle handle, int intfNum, byte endpoint, int timeout, int size)
 			throws LibUsbException {
-		ByteBuffer data = BufferUtils.allocateByteBuffer(size).order(ByteOrder.LITTLE_ENDIAN);
+		byte[] arr = new byte[TRANSFER_SIZE];
+
+		for (int i = 0; i < TRANSFER_SIZE; i++) {
+			arr[i] = 0;
+		}
+
+		ByteBuffer data = BufferUtils.allocateByteBuffer(TRANSFER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
 		data.rewind();
 		IntBuffer transferred = BufferUtils.allocateIntBuffer();
 
@@ -79,7 +85,20 @@ public class ScannerHID {
 			throw new LibUsbException("ERROR: Unable read data", r);
 		} else {
 			System.out.println("Data read; transferred:" + transferred.get());
-			System.out.println("ARRAY: " + data.toString());
+
+			if (data.hasArray()) {
+				System.out.println("ARRAY: " + data.array());
+			} else {
+				data.get(arr, 0, TRANSFER_SIZE);
+
+				for (int i = 0; i < TRANSFER_SIZE; i++) {
+					if (i != 0) {
+						System.out.print(", ");
+					}
+
+					System.out.print(arr[i]);
+				}
+			}
 		}
 
 		return data.toString();
